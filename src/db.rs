@@ -22,7 +22,7 @@ pub async fn initialize() -> Result<(), EmbeddingError> {
     // Create the table to store the embeddings
     query(
         "
-        CREATE TABLE IF NOT EXISTS embedding (
+        CREATE TABLE IF NOT EXISTS embeddings (
             id UUID DEFAULT gen_random_uuid(),
             text TEXT,
             embedding vector(3072),
@@ -37,11 +37,34 @@ pub async fn initialize() -> Result<(), EmbeddingError> {
     Ok(())
 }
 
+pub async fn store(text: String, embedding: Vec<f32>) -> Result<(), EmbeddingError> {
+    dotenv().ok();
+
+    let database_url = var("DATABASE_URL")?;
+
+    let pool = PgPool::connect(&database_url).await?;
+
+    // Insert rows
+    query(
+        "
+        INSERT INTO embeddings (text, embedding)
+        VALUES ($1, $2);
+    ",
+    )
+    .bind(text)
+    .bind(embedding)
+    .execute(&pool)
+    .await?;
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::random;
 
-    // TODO: Make this test not against prod db.
+    // TODO: Make this test not against prod db. And also the other test not depend on that one since they may run in parralel.
     #[tokio::test]
     async fn test_initialize_success() {
         dotenv().ok();
@@ -65,11 +88,41 @@ mod tests {
         // Check that the embedding table was created
         let result = query(
             "
-            SELECT * FROM information_schema.tables WHERE table_name = 'embedding';
+            SELECT * FROM information_schema.tables WHERE table_name = 'embeddings';
         ",
         )
         .fetch_one(&pool)
         .await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_store_success() {
+        dotenv().ok();
+
+        let database_url = var("DATABASE_URL").unwrap();
+
+        let pool = PgPool::connect(&database_url).await.unwrap();
+
+        initialize().await.unwrap();
+
+        let text = format!("The sky is blue {}", random::<u32>());
+        let embedding = (0..3072)
+            .map(|_| random::<f32>() * 2.0 - 1.0)
+            .collect::<Vec<f32>>();
+
+        store(text.clone(), embedding.clone()).await.unwrap();
+
+        // Check that the row was inserted
+        let result = query(
+            "
+            SELECT * FROM embeddings WHERE text = $1;
+        ",
+        )
+        .bind(text)
+        .fetch_one(&pool)
+        .await;
+
         assert!(result.is_ok());
     }
 }
