@@ -1,6 +1,6 @@
 use crate::errors::EmbeddingError;
 use dotenv::dotenv;
-use sqlx::{postgres::PgPool, query};
+use sqlx::{postgres::PgPool, query, Row};
 use std::env::var;
 
 pub async fn initialize() -> Result<(), EmbeddingError> {
@@ -57,6 +57,36 @@ pub async fn store(text: String, embedding: Vec<f32>) -> Result<(), EmbeddingErr
     .await?;
 
     Ok(())
+}
+
+pub async fn fetch_similar(embedding: Vec<f32>, top_k: i32) -> Result<Vec<String>, EmbeddingError> {
+    dotenv().ok();
+
+    let database_url = var("DATABASE_URL")?;
+
+    let pool = PgPool::connect(&database_url).await?;
+
+    // Find the most similar embeddings
+    let result = query(
+        "
+        SELECT text, embedding <=> $1::vector(3072) AS distance
+        FROM embeddings
+        WHERE embedding IS NOT NULL
+        ORDER BY distance ASC
+        LIMIT $2;
+    ",
+    )
+    .bind(embedding)
+    .bind(top_k)
+    .fetch_all(&pool)
+    .await?;
+
+    let texts = result
+        .iter()
+        .map(|row| row.get("text"))
+        .collect::<Vec<String>>();
+
+    Ok(texts)
 }
 
 #[cfg(test)]
@@ -124,5 +154,26 @@ mod tests {
         .await;
 
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_fetch_similar_success() {
+        initialize().await.unwrap();
+
+        let text = format!("The sky is blue {}", random::<u32>());
+        let embedding = (0..3072)
+            .map(|_| random::<f32>() * 2.0 - 1.0)
+            .collect::<Vec<f32>>();
+
+        store(text.clone(), embedding.clone()).await.unwrap();
+
+        let top_k = 5;
+
+        let similar_texts = fetch_similar(embedding.clone(), top_k.clone())
+            .await
+            .unwrap();
+
+        assert_eq!(similar_texts.len(), top_k as usize);
+        assert_eq!(similar_texts[0], text);
     }
 }
