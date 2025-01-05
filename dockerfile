@@ -2,7 +2,9 @@
 FROM rust:alpine AS builder
 
 ## Install dependencies
-RUN apk add --no-cache musl-dev
+RUN apk add --no-cache \
+    musl-dev \
+    openssl-dev
 
 ## Create a new empty project
 WORKDIR /app
@@ -32,4 +34,4 @@ WORKDIR /app
 
 COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/embedder .
 
-CMD ["./parser"]
+CMD ["./embedder"]
