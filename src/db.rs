@@ -37,6 +37,7 @@ pub async fn initialize() -> Result<(), EmbeddingError> {
     Ok(())
 }
 
+// TODO: This function need to accept multiple inputs for efficient batch processing
 pub async fn store(text: String, embedding: Vec<f32>) -> Result<(), EmbeddingError> {
     dotenv().ok();
 
