@@ -23,22 +23,30 @@ struct Embedding {
 pub async fn embed(text: Vec<String>) -> Result<Vec<Vec<f32>>, Box<dyn Error>> {
     dotenv().ok();
 
+    let url = "https://api.openai.com/v1/embeddings";
+
+    let auth_token = var("OPENAI_API_KEY")?;
+
+    let request_body = RequestBody {
+        input: text,
+        model: "text-embedding-3-large".to_string(),
+    };
+
     let client = Client::new();
 
-    let response = client
-        .post("https://api.openai.com/v1/embeddings")
-        .bearer_auth(var("OPENAI_API_KEY")?)
-        .json(&RequestBody {
-            input: text,
-            model: "text-embedding-3-large".to_string(),
-        })
+    let response: EmbeddingResponse = client
+        .post(url)
+        .bearer_auth(auth_token)
+        .json(&request_body)
         .send()
         .await?
-        .error_for_status()?;
+        .error_for_status()?
+        .json()
+        .await?;
 
-    let embedding: EmbeddingResponse = response.json().await?;
+    let embeddings = response.data.into_iter().map(|e| e.embedding).collect();
 
-    Ok(embedding.data.into_iter().map(|e| e.embedding).collect())
+    Ok(embeddings)
 }
 
 #[cfg(test)]
