@@ -13,6 +13,17 @@ services:
     networks:
       - embedder
 
+  db:
+    image: ankane/pgvector # Need to implement more secure option later
+    container_name: embedder-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - 5432:5432 # For external access
+    networks:
+      - embedder
+
 networks:
   embedder:
     name: embedder
