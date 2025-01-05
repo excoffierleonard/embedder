@@ -56,12 +56,11 @@ mod tests {
 
     #[tokio::test]
     async fn embed_success() {
-        let texts = vec!["The skye is blue", "The sun is shining"]
-            .iter()
-            .map(|s| s.to_string())
-            .collect();
+        let input_texts = vec!["The sky is blue", "The sun is shining"];
+        let texts = input_texts.iter().map(|s| s.to_string()).collect();
         let result = embed(texts).await.unwrap();
 
+        assert_eq!(result.len(), input_texts.len());
         assert_eq!(result[0].len(), 3072);
         assert_eq!(result[1].len(), 3072);
     }
