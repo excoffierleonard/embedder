@@ -41,6 +41,7 @@ pub async fn initialize() -> Result<(), EmbeddingError> {
 mod tests {
     use super::*;
 
+    // TODO: Make this test not against prod db.
     #[tokio::test]
     async fn test_initialize_success() {
         dotenv().ok();
