@@ -13,7 +13,7 @@ pub async fn initialize() -> Result<(), EmbeddingError> {
     // Create the vector extension for the database
     query(
         "
-    CREATE EXTENSION IF NOT EXISTS vector;
+        CREATE EXTENSION IF NOT EXISTS vector;
     ",
     )
     .execute(&pool)
@@ -29,7 +29,7 @@ pub async fn initialize() -> Result<(), EmbeddingError> {
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id)
         );
-        ",
+    ",
     )
     .execute(&pool)
     .await?;
@@ -52,16 +52,23 @@ mod tests {
         initialize().await.unwrap();
 
         // Check that the vector extension was created
-        let result = query("SELECT * FROM pg_extension WHERE extname = 'vector'")
-            .fetch_one(&pool)
-            .await;
+        let result = query(
+            "
+            SELECT * FROM pg_extension WHERE extname = 'vector';
+        ",
+        )
+        .fetch_one(&pool)
+        .await;
         assert!(result.is_ok());
 
         // Check that the embedding table was created
-        let result =
-            query("SELECT * FROM information_schema.tables WHERE table_name = 'embedding'")
-                .fetch_one(&pool)
-                .await;
+        let result = query(
+            "
+            SELECT * FROM information_schema.tables WHERE table_name = 'embedding';
+        ",
+        )
+        .fetch_one(&pool)
+        .await;
         assert!(result.is_ok());
     }
 }
