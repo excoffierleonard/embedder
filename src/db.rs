@@ -1,6 +1,6 @@
 use crate::errors::EmbeddingError;
 use dotenv::dotenv;
-use sqlx::{postgres::PgPool, query, Row};
+use sqlx::{postgres::PgPool, query, QueryBuilder, Row};
 use std::env::var;
 
 pub async fn initialize() -> Result<(), EmbeddingError> {
@@ -37,25 +37,30 @@ pub async fn initialize() -> Result<(), EmbeddingError> {
     Ok(())
 }
 
+#[derive(Debug)]
+pub struct EmbeddingRecord {
+    text: String,
+    embedding: Vec<f32>,
+}
+
 // TODO: This function need to accept multiple inputs for efficient batch processing
-pub async fn store(text: String, embedding: Vec<f32>) -> Result<(), EmbeddingError> {
+pub async fn store(records: Vec<EmbeddingRecord>) -> Result<(), EmbeddingError> {
     dotenv().ok();
 
     let database_url = var("DATABASE_URL")?;
-
     let pool = PgPool::connect(&database_url).await?;
 
-    // Insert rows
-    query(
+    let mut query_builder = QueryBuilder::new(
         "
         INSERT INTO embeddings (text, embedding)
-        VALUES ($1, $2);
     ",
-    )
-    .bind(text)
-    .bind(embedding)
-    .execute(&pool)
-    .await?;
+    );
+
+    query_builder.push_values(records, |mut b, record| {
+        b.push_bind(record.text).push_bind(record.embedding);
+    });
+
+    query_builder.build().execute(&pool).await?;
 
     Ok(())
 }
@@ -132,7 +137,6 @@ mod tests {
         dotenv().ok();
 
         let database_url = var("DATABASE_URL").unwrap();
-
         let pool = PgPool::connect(&database_url).await.unwrap();
 
         initialize().await.unwrap();
@@ -142,7 +146,13 @@ mod tests {
             .map(|_| random::<f32>() * 2.0 - 1.0)
             .collect::<Vec<f32>>();
 
-        store(text.clone(), embedding.clone()).await.unwrap();
+        // Create a vector with a single EmbeddingRecord
+        let records = vec![EmbeddingRecord {
+            text: text.clone(),
+            embedding: embedding.clone(),
+        }];
+
+        store(records).await.unwrap();
 
         // Check that the row was inserted
         let result = query(
@@ -166,7 +176,13 @@ mod tests {
             .map(|_| random::<f32>() * 2.0 - 1.0)
             .collect::<Vec<f32>>();
 
-        store(text.clone(), embedding.clone()).await.unwrap();
+        // Create a vector with a single EmbeddingRecord
+        let records = vec![EmbeddingRecord {
+            text: text.clone(),
+            embedding: embedding.clone(),
+        }];
+
+        store(records).await.unwrap();
 
         let top_k = 5;
 
