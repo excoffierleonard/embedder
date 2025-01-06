@@ -61,7 +61,7 @@ pub async fn initialize() -> Result<(), EmbeddingError> {
     query(
         "
         CREATE EXTENSION IF NOT EXISTS vector;
-    ",
+        ",
     )
     .execute(&pool)
     .await?;
@@ -76,7 +76,7 @@ pub async fn initialize() -> Result<(), EmbeddingError> {
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id)
         );
-    ",
+        ",
     )
     .bind(EMBEDDING_DIMENSION as i32)
     .execute(&pool)
@@ -99,7 +99,7 @@ pub async fn store(records: Vec<EmbeddingRecord>) -> Result<(), EmbeddingError> 
     let mut query_builder = QueryBuilder::new(
         "
         INSERT INTO embeddings (text, embedding)
-    ",
+        ",
     );
 
     query_builder.push_values(records, |mut b, record| {
@@ -126,7 +126,7 @@ pub async fn fetch_similar(embedding: Vec<f32>, top_k: i32) -> Result<Vec<String
         WHERE embedding IS NOT NULL
         ORDER BY distance ASC
         LIMIT $2;
-    ",
+        ",
         EMBEDDING_DIMENSION
     ))
     .bind(embedding)
@@ -134,12 +134,7 @@ pub async fn fetch_similar(embedding: Vec<f32>, top_k: i32) -> Result<Vec<String
     .fetch_all(&pool)
     .await?;
 
-    let texts = result
-        .iter()
-        .map(|row| row.get("text"))
-        .collect::<Vec<String>>();
-
-    Ok(texts)
+    Ok(result.iter().map(|row| row.get("text")).collect())
 }
 
 #[cfg(test)]
