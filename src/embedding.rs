@@ -5,19 +5,23 @@ use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgPool, query, QueryBuilder, Row};
 use std::env::var;
 
+const EMBEDDING_DIMENSION: usize = 3072;
+const OPENAI_API_URL: &str = "https://api.openai.com/v1/embeddings";
+const EMBEDDING_MODEL: &str = "text-embedding-3-large";
+
 #[derive(Serialize)]
-struct RequestBody {
+struct OpenAIRequest {
     input: Vec<String>,
     model: String,
 }
 
 #[derive(Deserialize)]
-struct EmbeddingResponse {
-    data: Vec<Embedding>,
+struct OpenAIResponse {
+    data: Vec<OpenAIEmbedding>,
 }
 
 #[derive(Deserialize)]
-struct Embedding {
+struct OpenAIEmbedding {
     embedding: Vec<f32>,
 }
 
@@ -25,37 +29,32 @@ struct Embedding {
 pub async fn embed(text: Vec<String>) -> Result<Vec<Vec<f32>>, EmbeddingError> {
     dotenv().ok();
 
-    let url = "https://api.openai.com/v1/embeddings";
-
     let auth_token = var("OPENAI_API_KEY")?;
 
-    let request_body = RequestBody {
+    let request = OpenAIRequest {
         input: text,
-        model: "text-embedding-3-large".to_string(),
+        model: EMBEDDING_MODEL.to_string(),
     };
 
     let client = Client::new();
 
-    let response: EmbeddingResponse = client
-        .post(url)
+    let response: OpenAIResponse = client
+        .post(OPENAI_API_URL)
         .bearer_auth(auth_token)
-        .json(&request_body)
+        .json(&request)
         .send()
         .await?
         .error_for_status()?
         .json()
         .await?;
 
-    let embeddings = response.data.into_iter().map(|e| e.embedding).collect();
-
-    Ok(embeddings)
+    Ok(response.data.into_iter().map(|e| e.embedding).collect())
 }
 
 pub async fn initialize() -> Result<(), EmbeddingError> {
     dotenv().ok();
 
     let database_url = var("DATABASE_URL")?;
-
     let pool = PgPool::connect(&database_url).await?;
 
     // Create the vector extension for the database
@@ -73,22 +72,22 @@ pub async fn initialize() -> Result<(), EmbeddingError> {
         CREATE TABLE IF NOT EXISTS embeddings (
             id UUID DEFAULT gen_random_uuid(),
             text TEXT,
-            embedding vector(3072),
+            embedding vector($1),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id)
         );
     ",
     )
+    .bind(EMBEDDING_DIMENSION as i32)
     .execute(&pool)
     .await?;
 
     Ok(())
 }
 
-#[derive(Debug)]
 pub struct EmbeddingRecord {
-    text: String,
-    embedding: Vec<f32>,
+    pub text: String,
+    pub embedding: Vec<f32>,
 }
 
 pub async fn store(records: Vec<EmbeddingRecord>) -> Result<(), EmbeddingError> {
@@ -116,19 +115,20 @@ pub async fn fetch_similar(embedding: Vec<f32>, top_k: i32) -> Result<Vec<String
     dotenv().ok();
 
     let database_url = var("DATABASE_URL")?;
-
     let pool = PgPool::connect(&database_url).await?;
 
+    // TODO: Need to find better way to build query than using format
     // Find the most similar embeddings
-    let result = query(
+    let result = query(&format!(
         "
-        SELECT text, embedding <=> $1::vector(3072) AS distance
+        SELECT text, embedding <=> $1::vector({}) AS distance
         FROM embeddings
         WHERE embedding IS NOT NULL
         ORDER BY distance ASC
         LIMIT $2;
     ",
-    )
+        EMBEDDING_DIMENSION
+    ))
     .bind(embedding)
     .bind(top_k)
     .fetch_all(&pool)
@@ -147,27 +147,35 @@ mod tests {
     use super::*;
     use rand::random;
 
-    #[tokio::test]
-    async fn embed_success() {
-        let input_texts = vec!["The sky is blue", "The sun is shining"];
-        let texts = input_texts.iter().map(|s| s.to_string()).collect();
-        let result = embed(texts).await.unwrap();
-
-        assert_eq!(result.len(), input_texts.len());
-        assert_eq!(result[0].len(), 3072);
-        assert_eq!(result[1].len(), 3072);
+    fn generate_random_text() -> String {
+        format!("The sky is blue {}", random::<u32>())
     }
 
-    // TODO: Make this test not against prod db. And also the other test not depend on that one since they may run in parralel.
+    fn generate_random_embedding() -> Vec<f32> {
+        (0..EMBEDDING_DIMENSION)
+            .map(|_| random::<f32>() * 2.0 - 1.0)
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn embed_success() {
+        let texts = vec![generate_random_text(), generate_random_text()];
+        let result = embed(texts.clone()).await.unwrap();
+
+        assert_eq!(result.len(), texts.len());
+        assert_eq!(result[0].len(), EMBEDDING_DIMENSION);
+        assert_eq!(result[1].len(), EMBEDDING_DIMENSION);
+    }
+
+    // TODO: Make these tests not against prod db. And also the other test not depend on that one since they may run in parralel.
+
     #[tokio::test]
     async fn test_initialize_success() {
         dotenv().ok();
+        initialize().await.unwrap();
 
         let database_url = var("DATABASE_URL").unwrap();
-
         let pool = PgPool::connect(&database_url).await.unwrap();
-
-        initialize().await.unwrap();
 
         // Check that the vector extension was created
         let result = query(
@@ -193,16 +201,13 @@ mod tests {
     #[tokio::test]
     async fn test_store_success() {
         dotenv().ok();
+        initialize().await.unwrap();
 
         let database_url = var("DATABASE_URL").unwrap();
         let pool = PgPool::connect(&database_url).await.unwrap();
 
-        initialize().await.unwrap();
-
-        let text = format!("The sky is blue {}", random::<u32>());
-        let embedding = (0..3072)
-            .map(|_| random::<f32>() * 2.0 - 1.0)
-            .collect::<Vec<f32>>();
+        let text = generate_random_text();
+        let embedding = generate_random_embedding();
 
         // Create a vector with a single EmbeddingRecord
         let records = vec![EmbeddingRecord {
@@ -229,10 +234,8 @@ mod tests {
     async fn test_fetch_similar_success() {
         initialize().await.unwrap();
 
-        let text = format!("The sky is blue {}", random::<u32>());
-        let embedding = (0..3072)
-            .map(|_| random::<f32>() * 2.0 - 1.0)
-            .collect::<Vec<f32>>();
+        let text = generate_random_text();
+        let embedding = generate_random_embedding();
 
         // Create a vector with a single EmbeddingRecord
         let records = vec![EmbeddingRecord {
