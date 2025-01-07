@@ -9,6 +9,13 @@ const EMBEDDING_DIMENSION: usize = 3072;
 const OPENAI_API_URL: &str = "https://api.openai.com/v1/embeddings";
 const EMBEDDING_MODEL: &str = "text-embedding-3-large";
 
+/// OpenAI API client
+#[derive(Debug)]
+pub struct OpenAIClient {
+    api_key: String,
+}
+
+/// Database connection pool
 #[derive(Debug)]
 pub struct DbPool(PgPool);
 
@@ -24,12 +31,25 @@ pub struct Embedding(Vec<f32>);
 #[derive(Debug)]
 pub struct EmbeddedTexts(Vec<(String, Embedding)>);
 
+/// Constructor implementation for DbPool
 impl DbPool {
+    /// Creates a new DbPool instance
     pub async fn new() -> Result<Self, EmbeddingError> {
         dotenv()?;
         let database_url = var("DATABASE_URL")?;
         let pool = PgPool::connect(&database_url).await?;
         Ok(Self(pool))
+    }
+}
+
+/// Constructor implementation for OpenAIClient
+impl OpenAIClient {
+    /// Creates a new OpenAIClient instance
+    pub fn new() -> Result<Self, EmbeddingError> {
+        dotenv()?;
+        let api_key = var("OPENAI_API_KEY")?;
+
+        Ok(Self { api_key })
     }
 }
 
@@ -57,10 +77,10 @@ impl InputTexts {
     }
 
     /// Embeds the input texts using OpenAI's API
-    pub async fn embed(self) -> Result<EmbeddedTexts, EmbeddingError> {
-        dotenv()?;
-        let auth_token = var("OPENAI_API_KEY")?;
-
+    pub async fn embed(
+        self,
+        openai_client: &OpenAIClient,
+    ) -> Result<EmbeddedTexts, EmbeddingError> {
         #[derive(Serialize)]
         struct OpenAIRequest {
             input: Vec<String>,
@@ -78,14 +98,14 @@ impl InputTexts {
         }
 
         let request = OpenAIRequest {
-            input: self.0, // Take ownership directly
+            input: self.0,
             model: EMBEDDING_MODEL.to_string(),
         };
 
         let client = Client::new();
         let response: OpenAIResponse = client
             .post(OPENAI_API_URL)
-            .bearer_auth(auth_token)
+            .bearer_auth(&openai_client.api_key)
             .json(&request)
             .send()
             .await?
@@ -203,7 +223,7 @@ impl EmbeddedTexts {
 }
 
 /// Initializes the database by creating the necessary tables and extensions
-pub async fn initialize(pool: &DbPool) -> Result<(), EmbeddingError> {
+pub async fn create_schema(pool: &DbPool) -> Result<(), EmbeddingError> {
     // Create the vector extension
     query("CREATE EXTENSION IF NOT EXISTS vector;")
         .execute(&pool.0)
@@ -244,11 +264,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn inputtexts_embed_success() {
+    async fn input_texts_embed_success() {
+        let openai_client = OpenAIClient::new().unwrap();
         let texts = vec![generate_random_text(), generate_random_text()];
         let result = InputTexts::new(texts.clone())
             .unwrap()
-            .embed()
+            .embed(&openai_client)
             .await
             .unwrap();
 
@@ -262,7 +283,7 @@ mod tests {
     #[tokio::test]
     async fn embedding_store_success() {
         let pool = DbPool::new().await.unwrap();
-        initialize(&pool).await.unwrap();
+        create_schema(&pool).await.unwrap();
         let text = generate_random_text();
         let embedding = generate_random_embedding();
 
@@ -291,9 +312,9 @@ mod tests {
     // TODO: Make these tests not against prod db. And also the other test not depend on that one since they may run in parralel.
 
     #[tokio::test]
-    async fn initialize_success() {
+    async fn create_schema_success() {
         let pool = DbPool::new().await.unwrap();
-        initialize(&pool).await.unwrap();
+        create_schema(&pool).await.unwrap();
 
         // Check that the vector extension was created
         let result = query(
@@ -319,7 +340,7 @@ mod tests {
     #[tokio::test]
     async fn test_fetch_similar_success() {
         let pool = DbPool::new().await.unwrap();
-        initialize(&pool).await.unwrap();
+        create_schema(&pool).await.unwrap();
         let text = generate_random_text();
         let embedding = generate_random_embedding();
 
