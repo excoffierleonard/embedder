@@ -9,111 +9,198 @@ const EMBEDDING_DIMENSION: usize = 3072;
 const OPENAI_API_URL: &str = "https://api.openai.com/v1/embeddings";
 const EMBEDDING_MODEL: &str = "text-embedding-3-large";
 
-#[derive(Serialize)]
-struct OpenAIRequest {
-    input: Vec<String>,
-    model: String,
+pub struct InputTexts(Vec<String>);
+
+pub struct Embedding(Vec<f32>);
+
+pub struct EmbeddedTexts(Vec<(String, Embedding)>);
+
+/// Constructor implementation for InputTexts
+impl InputTexts {
+    /// Creates a new InputTexts instance
+    pub fn new(texts: Vec<String>) -> Result<Self, EmbeddingError> {
+        if texts.is_empty() {
+            return Err(EmbeddingError::EmptyInput);
+        }
+
+        // Additional validation could be added here
+        for text in &texts {
+            if text.trim().is_empty() {
+                return Err(EmbeddingError::EmptyString);
+            }
+        }
+
+        Ok(Self(texts))
+    }
+
+    /// Returns a reference to the inner vector of strings
+    pub fn as_vec(&self) -> &Vec<String> {
+        &self.0
+    }
+
+    /// Embeds the input texts using OpenAI's API
+    pub async fn embed(self) -> Result<EmbeddedTexts, EmbeddingError> {
+        dotenv().ok();
+        let auth_token = var("OPENAI_API_KEY")?;
+
+        #[derive(Serialize)]
+        struct OpenAIRequest {
+            input: Vec<String>,
+            model: String,
+        }
+
+        #[derive(Deserialize)]
+        struct OpenAIResponse {
+            data: Vec<OpenAIEmbedding>,
+        }
+
+        #[derive(Deserialize)]
+        struct OpenAIEmbedding {
+            embedding: Vec<f32>,
+        }
+
+        let request = OpenAIRequest {
+            input: self.0, // Take ownership directly
+            model: EMBEDDING_MODEL.to_string(),
+        };
+
+        let client = Client::new();
+        let response: OpenAIResponse = client
+            .post(OPENAI_API_URL)
+            .bearer_auth(auth_token)
+            .json(&request)
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+
+        // Get texts back from the request after it's used
+        let texts = request.input;
+
+        // Convert response into embeddings
+        let embeddings = response
+            .data
+            .into_iter()
+            .map(|e| Embedding::new(e.embedding))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        EmbeddedTexts::new(texts, embeddings)
+    }
 }
 
-#[derive(Deserialize)]
-struct OpenAIResponse {
-    data: Vec<OpenAIEmbedding>,
+/// Constructor implementation for Embedding
+impl Embedding {
+    /// Creates a new Embedding instance
+    pub fn new(embedding: Vec<f32>) -> Result<Self, EmbeddingError> {
+        if embedding.len() != EMBEDDING_DIMENSION {
+            return Err(EmbeddingError::InvalidDimension {
+                expected: EMBEDDING_DIMENSION,
+                got: embedding.len(),
+            });
+        }
+
+        // Additional validation could be added here
+        if embedding.iter().any(|&x| x.is_nan() || x.is_infinite()) {
+            return Err(EmbeddingError::InvalidValues);
+        }
+
+        Ok(Self(embedding))
+    }
+
+    /// Returns a reference to the inner vector of f32 values
+    pub fn as_vec(&self) -> &Vec<f32> {
+        &self.0
+    }
 }
 
-#[derive(Deserialize)]
-struct OpenAIEmbedding {
-    embedding: Vec<f32>,
+/// Constructor implementation for EmbeddedTexts
+impl EmbeddedTexts {
+    /// Creates a new EmbeddedTexts instance
+    pub fn new(texts: Vec<String>, embeddings: Vec<Embedding>) -> Result<Self, EmbeddingError> {
+        if texts.len() != embeddings.len() {
+            return Err(EmbeddingError::MismatchedLength {
+                texts: texts.len(),
+                embeddings: embeddings.len(),
+            });
+        }
+
+        // Additional validation could be added here
+        for text in &texts {
+            if text.trim().is_empty() {
+                return Err(EmbeddingError::EmptyString);
+            }
+        }
+
+        Ok(Self(texts.into_iter().zip(embeddings).collect()))
+    }
+
+    /// Returns a reference to the inner vector of text-embedding pairs
+    pub fn as_vec(&self) -> &Vec<(String, Embedding)> {
+        &self.0
+    }
+
+    /// Returns an iterator over references to the text-embedding pairs
+    pub fn iter(&self) -> impl Iterator<Item = &(String, Embedding)> {
+        self.0.iter()
+    }
+
+    /// Stores the embedded texts in the database
+    pub async fn store(&self) -> Result<(), EmbeddingError> {
+        dotenv().ok();
+        let database_url = var("DATABASE_URL")?;
+        let pool = PgPool::connect(&database_url).await?;
+
+        let mut query_builder = QueryBuilder::new("INSERT INTO embeddings (text, embedding) ");
+
+        // Using references throughout
+        query_builder.push_values(&self.0, |mut b, pair| {
+            let (text, embedding) = pair;
+            b.push_bind(text).push_bind(embedding.as_vec());
+        });
+
+        query_builder.build().execute(&pool).await?;
+
+        Ok(())
+    }
 }
 
-/// Embeds the given text using the OpenAI API.
-pub async fn embed(text: Vec<String>) -> Result<Vec<Vec<f32>>, EmbeddingError> {
-    dotenv().ok();
-
-    let auth_token = var("OPENAI_API_KEY")?;
-
-    let request = OpenAIRequest {
-        input: text,
-        model: EMBEDDING_MODEL.to_string(),
-    };
-
-    let client = Client::new();
-
-    let response: OpenAIResponse = client
-        .post(OPENAI_API_URL)
-        .bearer_auth(auth_token)
-        .json(&request)
-        .send()
-        .await?
-        .error_for_status()?
-        .json()
-        .await?;
-
-    Ok(response.data.into_iter().map(|e| e.embedding).collect())
-}
-
+/// Initializes the database by creating the necessary tables and extensions
 pub async fn initialize() -> Result<(), EmbeddingError> {
     dotenv().ok();
-
     let database_url = var("DATABASE_URL")?;
     let pool = PgPool::connect(&database_url).await?;
 
-    // Create the vector extension for the database
-    query(
-        "
-        CREATE EXTENSION IF NOT EXISTS vector;
-        ",
-    )
-    .execute(&pool)
-    .await?;
+    // Create the vector extension
+    query("CREATE EXTENSION IF NOT EXISTS vector;")
+        .execute(&pool)
+        .await?;
 
-    // Create the table to store the embeddings
-    query(
+    // Create the embeddings table
+    query(&format!(
         "
         CREATE TABLE IF NOT EXISTS embeddings (
             id UUID DEFAULT gen_random_uuid(),
-            text TEXT,
-            embedding vector($1),
+            text TEXT NOT NULL,
+            embedding vector({}),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id)
         );
         ",
-    )
-    .bind(EMBEDDING_DIMENSION as i32)
+        EMBEDDING_DIMENSION
+    ))
     .execute(&pool)
     .await?;
 
     Ok(())
 }
 
-pub struct EmbeddingRecord {
-    pub text: String,
-    pub embedding: Vec<f32>,
-}
-
-pub async fn store(records: Vec<EmbeddingRecord>) -> Result<(), EmbeddingError> {
+/// Returns the most similar texts to the given embedding
+pub async fn fetch_similar(
+    embedding: Embedding,
+    top_k: i32,
+) -> Result<Vec<String>, EmbeddingError> {
     dotenv().ok();
-
-    let database_url = var("DATABASE_URL")?;
-    let pool = PgPool::connect(&database_url).await?;
-
-    let mut query_builder = QueryBuilder::new(
-        "
-        INSERT INTO embeddings (text, embedding)
-        ",
-    );
-
-    query_builder.push_values(records, |mut b, record| {
-        b.push_bind(record.text).push_bind(record.embedding);
-    });
-
-    query_builder.build().execute(&pool).await?;
-
-    Ok(())
-}
-
-pub async fn fetch_similar(embedding: Vec<f32>, top_k: i32) -> Result<Vec<String>, EmbeddingError> {
-    dotenv().ok();
-
     let database_url = var("DATABASE_URL")?;
     let pool = PgPool::connect(&database_url).await?;
 
@@ -129,7 +216,7 @@ pub async fn fetch_similar(embedding: Vec<f32>, top_k: i32) -> Result<Vec<String
         ",
         EMBEDDING_DIMENSION
     ))
-    .bind(embedding)
+    .bind(embedding.as_vec())
     .bind(top_k)
     .fetch_all(&pool)
     .await?;
@@ -155,20 +242,25 @@ mod tests {
     #[tokio::test]
     async fn embed_success() {
         let texts = vec![generate_random_text(), generate_random_text()];
-        let result = embed(texts.clone()).await.unwrap();
+        let result = InputTexts::new(texts.clone())
+            .unwrap()
+            .embed()
+            .await
+            .unwrap();
 
-        assert_eq!(result.len(), texts.len());
-        assert_eq!(result[0].len(), EMBEDDING_DIMENSION);
-        assert_eq!(result[1].len(), EMBEDDING_DIMENSION);
+        assert_eq!(result.as_vec().len(), texts.len());
+        assert_eq!(result.as_vec()[0].1.as_vec().len(), EMBEDDING_DIMENSION);
+        assert_eq!(result.as_vec()[1].1.as_vec().len(), EMBEDDING_DIMENSION);
+        assert_eq!(result.as_vec()[0].0, texts[0]);
+        assert_eq!(result.as_vec()[1].0, texts[1]);
     }
 
     // TODO: Make these tests not against prod db. And also the other test not depend on that one since they may run in parralel.
 
     #[tokio::test]
     async fn test_initialize_success() {
-        dotenv().ok();
         initialize().await.unwrap();
-
+        dotenv().ok();
         let database_url = var("DATABASE_URL").unwrap();
         let pool = PgPool::connect(&database_url).await.unwrap();
 
@@ -195,22 +287,22 @@ mod tests {
 
     #[tokio::test]
     async fn test_store_success() {
-        dotenv().ok();
         initialize().await.unwrap();
-
+        dotenv().ok();
         let database_url = var("DATABASE_URL").unwrap();
         let pool = PgPool::connect(&database_url).await.unwrap();
 
         let text = generate_random_text();
         let embedding = generate_random_embedding();
 
-        // Create a vector with a single EmbeddingRecord
-        let records = vec![EmbeddingRecord {
-            text: text.clone(),
-            embedding: embedding.clone(),
-        }];
-
-        store(records).await.unwrap();
+        EmbeddedTexts::new(
+            vec![text.clone()],
+            vec![Embedding::new(embedding.clone()).unwrap()],
+        )
+        .unwrap()
+        .store()
+        .await
+        .unwrap();
 
         // Check that the row was inserted
         let result = query(
@@ -232,19 +324,21 @@ mod tests {
         let text = generate_random_text();
         let embedding = generate_random_embedding();
 
-        // Create a vector with a single EmbeddingRecord
-        let records = vec![EmbeddingRecord {
-            text: text.clone(),
-            embedding: embedding.clone(),
-        }];
-
-        store(records).await.unwrap();
+        EmbeddedTexts::new(
+            vec![text.clone()],
+            vec![Embedding::new(embedding.clone()).unwrap()],
+        )
+        .unwrap()
+        .store()
+        .await
+        .unwrap();
 
         let top_k = 5;
 
-        let similar_texts = fetch_similar(embedding.clone(), top_k.clone())
-            .await
-            .unwrap();
+        let similar_texts =
+            fetch_similar(Embedding::new(embedding.clone()).unwrap(), top_k.clone())
+                .await
+                .unwrap();
 
         assert_eq!(similar_texts.len(), top_k as usize);
         assert_eq!(similar_texts[0], text);
