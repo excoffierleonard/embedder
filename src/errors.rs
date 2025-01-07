@@ -58,6 +58,12 @@ impl From<std::env::VarError> for EmbeddingError {
     }
 }
 
+impl From<dotenv::Error> for EmbeddingError {
+    fn from(_: dotenv::Error) -> Self {
+        EmbeddingError::EnvError(std::env::VarError::NotPresent)
+    }
+}
+
 impl From<sqlx::Error> for EmbeddingError {
     fn from(err: sqlx::Error) -> Self {
         EmbeddingError::DbError(err)

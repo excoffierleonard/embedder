@@ -9,14 +9,29 @@ const EMBEDDING_DIMENSION: usize = 3072;
 const OPENAI_API_URL: &str = "https://api.openai.com/v1/embeddings";
 const EMBEDDING_MODEL: &str = "text-embedding-3-large";
 
+#[derive(Debug)]
+pub struct DbPool(PgPool);
+
 /// Input texts to be embedded
+#[derive(Debug)]
 pub struct InputTexts(Vec<String>);
 
 /// Embedding of a text
+#[derive(Debug)]
 pub struct Embedding(Vec<f32>);
 
 /// Texts with their embeddings
+#[derive(Debug)]
 pub struct EmbeddedTexts(Vec<(String, Embedding)>);
+
+impl DbPool {
+    pub async fn new() -> Result<Self, EmbeddingError> {
+        dotenv()?;
+        let database_url = var("DATABASE_URL")?;
+        let pool = PgPool::connect(&database_url).await?;
+        Ok(Self(pool))
+    }
+}
 
 /// Constructor implementation for InputTexts
 impl InputTexts {
@@ -43,7 +58,7 @@ impl InputTexts {
 
     /// Embeds the input texts using OpenAI's API
     pub async fn embed(self) -> Result<EmbeddedTexts, EmbeddingError> {
-        dotenv().ok();
+        dotenv()?;
         let auth_token = var("OPENAI_API_KEY")?;
 
         #[derive(Serialize)]
@@ -117,12 +132,11 @@ impl Embedding {
     }
 
     /// Returns the most similar texts to the given embedding
-    pub async fn fetch_similar(&self, top_k: i32) -> Result<Vec<String>, EmbeddingError> {
-        dotenv().ok();
-        let database_url = var("DATABASE_URL")?;
-        let pool = PgPool::connect(&database_url).await?;
-
-        // Find the most similar embeddings
+    pub async fn fetch_similar(
+        &self,
+        top_k: i32,
+        pool: &DbPool,
+    ) -> Result<Vec<String>, EmbeddingError> {
         let result = query(&format!(
             "
             SELECT text, embedding <=> $1::vector({}) AS distance
@@ -135,7 +149,7 @@ impl Embedding {
         ))
         .bind(self.as_vec())
         .bind(top_k)
-        .fetch_all(&pool)
+        .fetch_all(&pool.0)
         .await?;
 
         Ok(result.iter().map(|row| row.get("text")).collect())
@@ -174,34 +188,25 @@ impl EmbeddedTexts {
     }
 
     /// Stores the embedded texts in the database
-    pub async fn store(&self) -> Result<(), EmbeddingError> {
-        dotenv().ok();
-        let database_url = var("DATABASE_URL")?;
-        let pool = PgPool::connect(&database_url).await?;
-
+    pub async fn store(&self, pool: &DbPool) -> Result<(), EmbeddingError> {
         let mut query_builder = QueryBuilder::new("INSERT INTO embeddings (text, embedding) ");
 
-        // Using references throughout
         query_builder.push_values(&self.0, |mut b, pair| {
             let (text, embedding) = pair;
             b.push_bind(text).push_bind(embedding.as_vec());
         });
 
-        query_builder.build().execute(&pool).await?;
+        query_builder.build().execute(&pool.0).await?;
 
         Ok(())
     }
 }
 
 /// Initializes the database by creating the necessary tables and extensions
-pub async fn initialize() -> Result<(), EmbeddingError> {
-    dotenv().ok();
-    let database_url = var("DATABASE_URL")?;
-    let pool = PgPool::connect(&database_url).await?;
-
+pub async fn initialize(pool: &DbPool) -> Result<(), EmbeddingError> {
     // Create the vector extension
     query("CREATE EXTENSION IF NOT EXISTS vector;")
-        .execute(&pool)
+        .execute(&pool.0)
         .await?;
 
     // Create the embeddings table
@@ -217,7 +222,7 @@ pub async fn initialize() -> Result<(), EmbeddingError> {
         ",
         EMBEDDING_DIMENSION
     ))
-    .execute(&pool)
+    .execute(&pool.0)
     .await?;
 
     Ok(())
@@ -256,11 +261,8 @@ mod tests {
 
     #[tokio::test]
     async fn embedding_store_success() {
-        initialize().await.unwrap();
-        dotenv().ok();
-        let database_url = var("DATABASE_URL").unwrap();
-        let pool = PgPool::connect(&database_url).await.unwrap();
-
+        let pool = DbPool::new().await.unwrap();
+        initialize(&pool).await.unwrap();
         let text = generate_random_text();
         let embedding = generate_random_embedding();
 
@@ -269,7 +271,7 @@ mod tests {
             vec![Embedding::new(embedding.clone()).unwrap()],
         )
         .unwrap()
-        .store()
+        .store(&pool)
         .await
         .unwrap();
 
@@ -280,7 +282,7 @@ mod tests {
             ",
         )
         .bind(text)
-        .fetch_one(&pool)
+        .fetch_one(&pool.0)
         .await;
 
         assert!(result.is_ok());
@@ -290,10 +292,8 @@ mod tests {
 
     #[tokio::test]
     async fn initialize_success() {
-        initialize().await.unwrap();
-        dotenv().ok();
-        let database_url = var("DATABASE_URL").unwrap();
-        let pool = PgPool::connect(&database_url).await.unwrap();
+        let pool = DbPool::new().await.unwrap();
+        initialize(&pool).await.unwrap();
 
         // Check that the vector extension was created
         let result = query(
@@ -301,7 +301,7 @@ mod tests {
                 SELECT * FROM pg_extension WHERE extname = 'vector';
             ",
         )
-        .fetch_one(&pool)
+        .fetch_one(&pool.0)
         .await;
         assert!(result.is_ok());
 
@@ -311,15 +311,15 @@ mod tests {
                 SELECT * FROM information_schema.tables WHERE table_name = 'embeddings';
             ",
         )
-        .fetch_one(&pool)
+        .fetch_one(&pool.0)
         .await;
         assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn test_fetch_similar_success() {
-        initialize().await.unwrap();
-
+        let pool = DbPool::new().await.unwrap();
+        initialize(&pool).await.unwrap();
         let text = generate_random_text();
         let embedding = generate_random_embedding();
 
@@ -328,7 +328,7 @@ mod tests {
             vec![Embedding::new(embedding.clone()).unwrap()],
         )
         .unwrap()
-        .store()
+        .store(&pool)
         .await
         .unwrap();
 
@@ -336,7 +336,7 @@ mod tests {
 
         let similar_texts = Embedding::new(embedding)
             .unwrap()
-            .fetch_similar(top_k.clone())
+            .fetch_similar(top_k.clone(), &pool)
             .await
             .unwrap();
 
