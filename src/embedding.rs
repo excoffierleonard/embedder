@@ -9,10 +9,13 @@ const EMBEDDING_DIMENSION: usize = 3072;
 const OPENAI_API_URL: &str = "https://api.openai.com/v1/embeddings";
 const EMBEDDING_MODEL: &str = "text-embedding-3-large";
 
+/// Input texts to be embedded
 pub struct InputTexts(Vec<String>);
 
+/// Embedding of a text
 pub struct Embedding(Vec<f32>);
 
+/// Texts with their embeddings
 pub struct EmbeddedTexts(Vec<(String, Embedding)>);
 
 /// Constructor implementation for InputTexts
@@ -112,6 +115,31 @@ impl Embedding {
     pub fn as_vec(&self) -> &Vec<f32> {
         &self.0
     }
+
+    /// Returns the most similar texts to the given embedding
+    pub async fn fetch_similar(&self, top_k: i32) -> Result<Vec<String>, EmbeddingError> {
+        dotenv().ok();
+        let database_url = var("DATABASE_URL")?;
+        let pool = PgPool::connect(&database_url).await?;
+
+        // Find the most similar embeddings
+        let result = query(&format!(
+            "
+            SELECT text, embedding <=> $1::vector({}) AS distance
+            FROM embeddings
+            WHERE embedding IS NOT NULL
+            ORDER BY distance ASC
+            LIMIT $2;
+            ",
+            EMBEDDING_DIMENSION
+        ))
+        .bind(self.as_vec())
+        .bind(top_k)
+        .fetch_all(&pool)
+        .await?;
+
+        Ok(result.iter().map(|row| row.get("text")).collect())
+    }
 }
 
 /// Constructor implementation for EmbeddedTexts
@@ -195,35 +223,6 @@ pub async fn initialize() -> Result<(), EmbeddingError> {
     Ok(())
 }
 
-/// Returns the most similar texts to the given embedding
-pub async fn fetch_similar(
-    embedding: Embedding,
-    top_k: i32,
-) -> Result<Vec<String>, EmbeddingError> {
-    dotenv().ok();
-    let database_url = var("DATABASE_URL")?;
-    let pool = PgPool::connect(&database_url).await?;
-
-    // TODO: Need to find better way to build query than using format
-    // Find the most similar embeddings
-    let result = query(&format!(
-        "
-        SELECT text, embedding <=> $1::vector({}) AS distance
-        FROM embeddings
-        WHERE embedding IS NOT NULL
-        ORDER BY distance ASC
-        LIMIT $2;
-        ",
-        EMBEDDING_DIMENSION
-    ))
-    .bind(embedding.as_vec())
-    .bind(top_k)
-    .fetch_all(&pool)
-    .await?;
-
-    Ok(result.iter().map(|row| row.get("text")).collect())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -240,7 +239,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn embed_success() {
+    async fn inputtexts_embed_success() {
         let texts = vec![generate_random_text(), generate_random_text()];
         let result = InputTexts::new(texts.clone())
             .unwrap()
@@ -255,38 +254,8 @@ mod tests {
         assert_eq!(result.as_vec()[1].0, texts[1]);
     }
 
-    // TODO: Make these tests not against prod db. And also the other test not depend on that one since they may run in parralel.
-
     #[tokio::test]
-    async fn test_initialize_success() {
-        initialize().await.unwrap();
-        dotenv().ok();
-        let database_url = var("DATABASE_URL").unwrap();
-        let pool = PgPool::connect(&database_url).await.unwrap();
-
-        // Check that the vector extension was created
-        let result = query(
-            "
-                SELECT * FROM pg_extension WHERE extname = 'vector';
-            ",
-        )
-        .fetch_one(&pool)
-        .await;
-        assert!(result.is_ok());
-
-        // Check that the embedding table was created
-        let result = query(
-            "
-                SELECT * FROM information_schema.tables WHERE table_name = 'embeddings';
-            ",
-        )
-        .fetch_one(&pool)
-        .await;
-        assert!(result.is_ok());
-    }
-
-    #[tokio::test]
-    async fn test_store_success() {
+    async fn embedding_store_success() {
         initialize().await.unwrap();
         dotenv().ok();
         let database_url = var("DATABASE_URL").unwrap();
@@ -317,6 +286,36 @@ mod tests {
         assert!(result.is_ok());
     }
 
+    // TODO: Make these tests not against prod db. And also the other test not depend on that one since they may run in parralel.
+
+    #[tokio::test]
+    async fn initialize_success() {
+        initialize().await.unwrap();
+        dotenv().ok();
+        let database_url = var("DATABASE_URL").unwrap();
+        let pool = PgPool::connect(&database_url).await.unwrap();
+
+        // Check that the vector extension was created
+        let result = query(
+            "
+                SELECT * FROM pg_extension WHERE extname = 'vector';
+            ",
+        )
+        .fetch_one(&pool)
+        .await;
+        assert!(result.is_ok());
+
+        // Check that the embedding table was created
+        let result = query(
+            "
+                SELECT * FROM information_schema.tables WHERE table_name = 'embeddings';
+            ",
+        )
+        .fetch_one(&pool)
+        .await;
+        assert!(result.is_ok());
+    }
+
     #[tokio::test]
     async fn test_fetch_similar_success() {
         initialize().await.unwrap();
@@ -335,10 +334,11 @@ mod tests {
 
         let top_k = 5;
 
-        let similar_texts =
-            fetch_similar(Embedding::new(embedding.clone()).unwrap(), top_k.clone())
-                .await
-                .unwrap();
+        let similar_texts = Embedding::new(embedding)
+            .unwrap()
+            .fetch_similar(top_k.clone())
+            .await
+            .unwrap();
 
         assert_eq!(similar_texts.len(), top_k as usize);
         assert_eq!(similar_texts[0], text);
