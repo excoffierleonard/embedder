@@ -31,17 +31,6 @@ pub struct Embedding(Vec<f32>);
 #[derive(Debug)]
 pub struct EmbeddedTexts(Vec<(String, Embedding)>);
 
-/// Constructor implementation for DbPool
-impl DbPool {
-    /// Creates a new DbPool instance
-    pub async fn new() -> Result<Self, EmbeddingError> {
-        dotenv().ok();
-        let database_url = var("DATABASE_URL")?;
-        let pool = PgPool::connect(&database_url).await?;
-        Ok(Self(pool))
-    }
-}
-
 /// Constructor implementation for OpenAIClient
 impl OpenAIClient {
     /// Creates a new OpenAIClient instance
@@ -50,6 +39,17 @@ impl OpenAIClient {
         let api_key = var("OPENAI_API_KEY")?;
 
         Ok(Self { api_key })
+    }
+}
+
+/// Constructor implementation for DbPool
+impl DbPool {
+    /// Creates a new DbPool instance
+    pub async fn new() -> Result<Self, EmbeddingError> {
+        dotenv().ok();
+        let database_url = var("DATABASE_URL")?;
+        let pool = PgPool::connect(&database_url).await?;
+        Ok(Self(pool))
     }
 }
 
