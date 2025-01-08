@@ -143,7 +143,7 @@ impl Embedding {
     }
 
     /// Returns a reference to the inner vector of f32 values
-    fn as_vec(&self) -> &Vec<f32> {
+    pub fn as_vec(&self) -> &Vec<f32> {
         &self.0
     }
 

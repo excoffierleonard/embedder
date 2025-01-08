@@ -7,14 +7,15 @@ fn generate_random_text() -> String {
 
 #[tokio::test]
 async fn roundtrip() {
+    // Input setup
     let openai_client = OpenAIClient::new().unwrap();
     let db_pool = DbPool::new().await.unwrap();
+
     let texts = vec![
         generate_random_text(),
         generate_random_text(),
         generate_random_text(),
     ];
-    let top_k = 3;
 
     // Embed the texts
     let embedded_texts = InputTexts::new(texts.clone())
@@ -31,6 +32,9 @@ async fn roundtrip() {
 
     // Store the embedded texts in the database
     embedded_texts.store(&db_pool).await.unwrap();
+
+    // Input setup
+    let top_k = 3;
 
     // Retrieve the embedded texts from the database
     let retrieved_texts = InputTexts::new(texts.clone())
