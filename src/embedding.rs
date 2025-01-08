@@ -35,7 +35,7 @@ pub struct EmbeddedTexts(Vec<(String, Embedding)>);
 impl DbPool {
     /// Creates a new DbPool instance
     pub async fn new() -> Result<Self, EmbeddingError> {
-        dotenv()?;
+        dotenv().ok();
         let database_url = var("DATABASE_URL")?;
         let pool = PgPool::connect(&database_url).await?;
         Ok(Self(pool))
@@ -46,7 +46,7 @@ impl DbPool {
 impl OpenAIClient {
     /// Creates a new OpenAIClient instance
     pub fn new() -> Result<Self, EmbeddingError> {
-        dotenv()?;
+        dotenv().ok();
         let api_key = var("OPENAI_API_KEY")?;
 
         Ok(Self { api_key })
@@ -74,6 +74,11 @@ impl InputTexts {
     /// Returns a reference to the inner vector of strings
     pub fn as_vec(&self) -> &Vec<String> {
         &self.0
+    }
+
+    /// Implement the iterator trait for InputTexts
+    pub fn iter(&self) -> impl Iterator<Item = &String> {
+        self.0.iter()
     }
 
     /// Embeds the input texts using OpenAI's API
@@ -114,7 +119,7 @@ impl InputTexts {
             .await?;
 
         // Get texts back from the request after it's used
-        let texts = request.input;
+        let texts = InputTexts::new(request.input)?;
 
         // Convert response into embeddings
         let embeddings = response
@@ -179,22 +184,22 @@ impl Embedding {
 /// Constructor implementation for EmbeddedTexts
 impl EmbeddedTexts {
     /// Creates a new EmbeddedTexts instance
-    pub fn new(texts: Vec<String>, embeddings: Vec<Embedding>) -> Result<Self, EmbeddingError> {
-        if texts.len() != embeddings.len() {
+    pub fn new(texts: InputTexts, embeddings: Vec<Embedding>) -> Result<Self, EmbeddingError> {
+        if texts.as_vec().len() != embeddings.len() {
             return Err(EmbeddingError::MismatchedLength {
-                texts: texts.len(),
+                texts: texts.as_vec().len(),
                 embeddings: embeddings.len(),
             });
         }
 
-        // Additional validation could be added here
-        for text in &texts {
-            if text.trim().is_empty() {
-                return Err(EmbeddingError::EmptyString);
-            }
-        }
-
-        Ok(Self(texts.into_iter().zip(embeddings).collect()))
+        Ok(Self(
+            texts
+                .as_vec()
+                .into_iter()
+                .map(|s| s.to_string())
+                .zip(embeddings)
+                .collect(),
+        ))
     }
 
     /// Returns a reference to the inner vector of text-embedding pairs
@@ -288,7 +293,7 @@ mod tests {
         let embedding = generate_random_embedding();
 
         EmbeddedTexts::new(
-            vec![text.clone()],
+            InputTexts::new(vec![text.clone()]).unwrap(),
             vec![Embedding::new(embedding.clone()).unwrap()],
         )
         .unwrap()
@@ -345,7 +350,7 @@ mod tests {
         let embedding = generate_random_embedding();
 
         EmbeddedTexts::new(
-            vec![text.clone()],
+            InputTexts::new(vec![text.clone()]).unwrap(),
             vec![Embedding::new(embedding.clone()).unwrap()],
         )
         .unwrap()
