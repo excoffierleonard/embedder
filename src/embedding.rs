@@ -15,22 +15,6 @@ pub struct OpenAIClient {
     api_key: String,
 }
 
-/// Database connection pool
-#[derive(Debug)]
-pub struct DbPool(PgPool);
-
-/// Input texts to be embedded
-#[derive(Debug)]
-pub struct InputTexts(Vec<String>);
-
-/// Embedding of a text
-#[derive(Debug)]
-pub struct Embedding(Vec<f32>);
-
-/// Texts with their embeddings
-#[derive(Debug)]
-pub struct EmbeddedTexts(Vec<(String, Embedding)>);
-
 /// Constructor implementation for OpenAIClient
 impl OpenAIClient {
     /// Creates a new OpenAIClient instance
@@ -42,6 +26,10 @@ impl OpenAIClient {
     }
 }
 
+/// Database connection pool
+#[derive(Debug)]
+pub struct DbPool(PgPool);
+
 /// Constructor implementation for DbPool
 impl DbPool {
     /// Creates a new DbPool instance
@@ -52,6 +40,10 @@ impl DbPool {
         Ok(Self(pool))
     }
 }
+
+/// Input texts to be embedded
+#[derive(Debug)]
+pub struct InputTexts(Vec<String>);
 
 /// Constructor implementation for InputTexts
 impl InputTexts {
@@ -74,11 +66,6 @@ impl InputTexts {
     /// Returns a reference to the inner vector of strings
     pub fn as_vec(&self) -> &Vec<String> {
         &self.0
-    }
-
-    /// Implement the iterator trait for InputTexts
-    pub fn iter(&self) -> impl Iterator<Item = &String> {
-        self.0.iter()
     }
 
     /// Embeds the input texts using OpenAI's API
@@ -132,10 +119,14 @@ impl InputTexts {
     }
 }
 
+/// Embedding of a text
+#[derive(Debug)]
+pub struct Embedding(Vec<f32>);
+
 /// Constructor implementation for Embedding
 impl Embedding {
     /// Creates a new Embedding instance
-    pub fn new(embedding: Vec<f32>) -> Result<Self, EmbeddingError> {
+    fn new(embedding: Vec<f32>) -> Result<Self, EmbeddingError> {
         if embedding.len() != EMBEDDING_DIMENSION {
             return Err(EmbeddingError::InvalidDimension {
                 expected: EMBEDDING_DIMENSION,
@@ -152,12 +143,12 @@ impl Embedding {
     }
 
     /// Returns a reference to the inner vector of f32 values
-    pub fn as_vec(&self) -> &Vec<f32> {
+    fn as_vec(&self) -> &Vec<f32> {
         &self.0
     }
 
     /// Returns the most similar texts to the given embedding
-    pub async fn fetch_similar(
+    async fn fetch_similar(
         &self,
         top_k: i32,
         pool: &DbPool,
@@ -181,10 +172,14 @@ impl Embedding {
     }
 }
 
+/// Texts with their embeddings
+#[derive(Debug)]
+pub struct EmbeddedTexts(Vec<(String, Embedding)>);
+
 /// Constructor implementation for EmbeddedTexts
 impl EmbeddedTexts {
     /// Creates a new EmbeddedTexts instance
-    pub fn new(texts: InputTexts, embeddings: Vec<Embedding>) -> Result<Self, EmbeddingError> {
+    fn new(texts: InputTexts, embeddings: Vec<Embedding>) -> Result<Self, EmbeddingError> {
         if texts.as_vec().len() != embeddings.len() {
             return Err(EmbeddingError::MismatchedLength {
                 texts: texts.as_vec().len(),
@@ -207,11 +202,6 @@ impl EmbeddedTexts {
         &self.0
     }
 
-    /// Returns an iterator over references to the text-embedding pairs
-    pub fn iter(&self) -> impl Iterator<Item = &(String, Embedding)> {
-        self.0.iter()
-    }
-
     /// Stores the embedded texts in the database
     pub async fn store(&self, pool: &DbPool) -> Result<(), EmbeddingError> {
         let mut query_builder = QueryBuilder::new("INSERT INTO embeddings (text, embedding) ");
@@ -224,6 +214,22 @@ impl EmbeddedTexts {
         query_builder.build().execute(&pool.0).await?;
 
         Ok(())
+    }
+
+    /// Fetches the most similar texts to the given embeddings
+    pub async fn fetch_similar(
+        &self,
+        top_k: i32,
+        pool: &DbPool,
+    ) -> Result<Vec<Vec<String>>, EmbeddingError> {
+        let mut result = Vec::new();
+
+        for (_, embedding) in self.as_vec().iter() {
+            let similar_texts = embedding.fetch_similar(top_k, pool).await?;
+            result.push(similar_texts);
+        }
+
+        Ok(result)
     }
 }
 
