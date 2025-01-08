@@ -262,11 +262,22 @@ name = "embedder"
 version = "0.1.0"
 dependencies = [
  "dotenv",
+ "embedder-core",
  "rand",
  "reqwest",
  "serde",
  "serde_json",
  "sqlx",
+ "tokio",
+]
+
+[[package]]
+name = "embedder-core"
+version = "0.1.0"
+dependencies = [
+ "dotenv",
+ "reqwest",
+ "serde",
  "tokio",
 ]
 
