@@ -16,8 +16,6 @@ async fn roundtrip() {
         generate_random_text(),
     ];
 
-    let first_text = texts[0].clone();
-
     let top_k = 3;
 
     // Embed the texts
@@ -43,5 +41,5 @@ async fn roundtrip() {
 
     // Assertions
     assert_eq!(retrieved_texts.len(), top_k as usize);
-    assert_eq!(retrieved_texts[0], first_text);
+    assert_eq!(retrieved_texts[0], texts[0]);
 }
