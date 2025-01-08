@@ -43,7 +43,7 @@ impl DbPool {
     }
 
     /// Returns a reference to the inner PgPool
-    pub fn as_ref(&self) -> &PgPool {
+    pub fn inner(&self) -> &PgPool {
         &self.0
     }
 }
@@ -197,7 +197,7 @@ impl EmbeddedTexts {
         Ok(Self(
             texts
                 .as_vec()
-                .into_iter()
+                .iter()
                 .map(|s| s.to_string())
                 .zip(embeddings)
                 .collect(),
@@ -323,7 +323,7 @@ mod tests {
             ",
         )
         .bind(text)
-        .fetch_one(pool.as_ref())
+        .fetch_one(pool.inner())
         .await;
 
         assert!(result.is_ok());
@@ -342,7 +342,7 @@ mod tests {
                 WHERE extname = 'vector';
             ",
         )
-        .fetch_one(pool.as_ref())
+        .fetch_one(pool.inner())
         .await;
         assert!(result.is_ok());
 
@@ -354,7 +354,7 @@ mod tests {
                 WHERE table_name = 'embeddings';
             ",
         )
-        .fetch_one(pool.as_ref())
+        .fetch_one(pool.inner())
         .await;
         assert!(result.is_ok());
     }

@@ -19,7 +19,7 @@ async fn create_schema_success() {
             WHERE extname = 'vector';
         ",
     )
-    .fetch_one(pool.as_ref())
+    .fetch_one(pool.inner())
     .await;
     assert!(result.is_ok());
 
@@ -31,7 +31,7 @@ async fn create_schema_success() {
             WHERE table_name = 'embeddings';
         ",
     )
-    .fetch_one(pool.as_ref())
+    .fetch_one(pool.inner())
     .await;
     assert!(result.is_ok());
 }
