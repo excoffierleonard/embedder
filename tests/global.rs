@@ -1,8 +1,39 @@
-use embedder::{DbPool, InputTexts, OpenAIClient};
+use embedder::{create_schema, DbPool, InputTexts, OpenAIClient};
 use rand::random;
+use sqlx::query;
 
 fn generate_random_text() -> String {
     format!("The sky is blue {}", random::<u32>())
+}
+
+#[tokio::test]
+async fn create_schema_success() {
+    let pool = DbPool::new().await.unwrap();
+    create_schema(&pool).await.unwrap();
+
+    // Check that the vector extension was created
+    let result = query(
+        "
+            SELECT * 
+            FROM pg_extension 
+            WHERE extname = 'vector';
+        ",
+    )
+    .fetch_one(pool.as_ref())
+    .await;
+    assert!(result.is_ok());
+
+    // Check that the embedding table was created
+    let result = query(
+        "
+            SELECT * 
+            FROM information_schema.tables 
+            WHERE table_name = 'embeddings';
+        ",
+    )
+    .fetch_one(pool.as_ref())
+    .await;
+    assert!(result.is_ok());
 }
 
 #[tokio::test]
@@ -10,6 +41,7 @@ async fn roundtrip() {
     // Input setup
     let openai_client = OpenAIClient::new().unwrap();
     let db_pool = DbPool::new().await.unwrap();
+    create_schema(&db_pool).await.unwrap();
 
     let texts = vec![
         generate_random_text(),

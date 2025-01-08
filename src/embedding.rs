@@ -1,3 +1,5 @@
+//! Embedding module
+
 use crate::errors::EmbeddingError;
 use dotenv::dotenv;
 use reqwest::Client;
@@ -38,6 +40,11 @@ impl DbPool {
         let database_url = var("DATABASE_URL")?;
         let pool = PgPool::connect(&database_url).await?;
         Ok(Self(pool))
+    }
+
+    /// Returns a reference to the inner PgPool
+    pub fn as_ref(&self) -> &PgPool {
+        &self.0
     }
 }
 
@@ -291,6 +298,8 @@ mod tests {
         assert_eq!(result.as_vec()[1].0, texts[1]);
     }
 
+    // TODO: Make these tests not against prod db. And also the other test not depend on that one since they may run in parralel.
+
     #[tokio::test]
     async fn embedding_store_success() {
         let pool = DbPool::new().await.unwrap();
@@ -314,13 +323,11 @@ mod tests {
             ",
         )
         .bind(text)
-        .fetch_one(&pool.0)
+        .fetch_one(pool.as_ref())
         .await;
 
         assert!(result.is_ok());
     }
-
-    // TODO: Make these tests not against prod db. And also the other test not depend on that one since they may run in parralel.
 
     #[tokio::test]
     async fn create_schema_success() {
@@ -330,20 +337,24 @@ mod tests {
         // Check that the vector extension was created
         let result = query(
             "
-                SELECT * FROM pg_extension WHERE extname = 'vector';
+                SELECT * 
+                FROM pg_extension 
+                WHERE extname = 'vector';
             ",
         )
-        .fetch_one(&pool.0)
+        .fetch_one(pool.as_ref())
         .await;
         assert!(result.is_ok());
 
         // Check that the embedding table was created
         let result = query(
             "
-                SELECT * FROM information_schema.tables WHERE table_name = 'embeddings';
+                SELECT * 
+                FROM information_schema.tables 
+                WHERE table_name = 'embeddings';
             ",
         )
-        .fetch_one(&pool.0)
+        .fetch_one(pool.as_ref())
         .await;
         assert!(result.is_ok());
     }
@@ -364,7 +375,7 @@ mod tests {
         .await
         .unwrap();
 
-        let top_k = 5;
+        let top_k = 3;
 
         let similar_texts = Embedding::new(embedding)
             .unwrap()
