@@ -5,6 +5,7 @@ use crate::errors::EmbedderError;
 mod ollama;
 mod openai;
 
+pub use ollama::OllamaClient;
 pub use openai::OpenAIClient;
 
 pub trait EmbeddingClient {

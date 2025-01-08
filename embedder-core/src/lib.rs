@@ -3,4 +3,4 @@
 mod embedders;
 mod errors;
 
-pub use embedders::{InputTexts, OpenAIClient};
+pub use embedders::{InputTexts, OllamaClient, OpenAIClient};

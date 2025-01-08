@@ -4,7 +4,7 @@ use crate::{embedders::EmbeddingClient, errors::EmbedderError};
 use serde::{Deserialize, Serialize};
 
 const OPENAI_API_URL: &str = "https://api.openai.com/v1/embeddings";
-const EMBEDDING_MODEL: &str = "text-embedding-3-large";
+const OPENAI_EMBEDDING_MODEL: &str = "text-embedding-3-large";
 
 pub struct OpenAIClient {
     api_key: String,
@@ -41,7 +41,7 @@ impl EmbeddingClient for OpenAIClient {
 
         let request = OpenAIRequest {
             input: texts,
-            model: EMBEDDING_MODEL.to_string(),
+            model: OPENAI_EMBEDDING_MODEL.to_string(),
         };
 
         let response: OpenAIResponse = self
