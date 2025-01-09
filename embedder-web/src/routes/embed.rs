@@ -22,8 +22,5 @@ async fn embed_texts(
 
     let embeddings = InputTexts::new(texts).embed(client).await?;
 
-    Ok(EmbedResponse {
-        model: model,
-        embeddings: embeddings,
-    })
+    Ok(EmbedResponse { model, embeddings })
 }
