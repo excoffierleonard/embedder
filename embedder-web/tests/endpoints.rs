@@ -20,7 +20,7 @@ async fn request_embed_ollama_success() {
     let app = test::init_service(App::new().service(embed_texts)).await;
 
     // Create body
-    let model = "nomic-text-embed".to_string();
+    let model = "nomic-embed-text".to_string();
     let texts = vec!["Hello, world!".to_string(), "Goodbye, world!".to_string()];
 
     let body = EmbedRequestBody {
