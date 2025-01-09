@@ -1,6 +1,7 @@
 //! OpenAI embedder
 
 use crate::{embedders::EmbeddingClient, errors::EmbedderError};
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
 const OPENAI_API_URL: &str = "https://api.openai.com/v1/embeddings";
@@ -11,17 +12,17 @@ pub struct OpenAIClient {
     api_key: String,
     model: String,
     base_url: String,
-    client: reqwest::Client,
+    client: Client,
 }
 
 impl OpenAIClient {
     /// Create a new instance of OpenAIClient
-    pub fn new(api_key: String) -> Self {
+    pub fn new(api_key: String, model: Option<String>) -> Self {
         Self {
             api_key,
-            model: OPENAI_EMBEDDING_MODEL.to_string(),
+            model: model.unwrap_or_else(|| OPENAI_EMBEDDING_MODEL.to_string()),
             base_url: OPENAI_API_URL.to_string(),
-            client: reqwest::Client::new(),
+            client: Client::new(),
         }
     }
 }

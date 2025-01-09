@@ -15,10 +15,10 @@ pub struct OllamaClient {
 
 impl OllamaClient {
     /// Create a new instance of OllamaClient
-    pub fn new(model: &str, base_url: &str) -> Self {
+    pub fn new(model: Option<String>, base_url: Option<String>) -> Self {
         Self {
-            model: model.to_string(),
-            base_url: base_url.to_string(),
+            model: model.unwrap_or_else(|| DEFAULT_OLLAMA_EMBEDDING_MODEL.to_string()),
+            base_url: base_url.unwrap_or_else(|| DEFAULT_OLLAMA_API_URL.to_string()),
             client: reqwest::Client::new(),
         }
     }
@@ -27,7 +27,7 @@ impl OllamaClient {
 impl Default for OllamaClient {
     /// Create a new instance of OllamaClient with default values
     fn default() -> Self {
-        Self::new(DEFAULT_OLLAMA_EMBEDDING_MODEL, DEFAULT_OLLAMA_API_URL)
+        Self::new(None, None)
     }
 }
 
