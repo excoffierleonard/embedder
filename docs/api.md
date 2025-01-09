@@ -26,7 +26,7 @@ Authorization: Bearer *OPENAI_API_KEY*
 
 ```json
 {
-    "model": "*Name of the embedding model*"
+    "model": "*Name of the embedding model*",
     "texts": [
         "*First Text.*",
         "*Seconf Text.*"
@@ -81,7 +81,7 @@ curl --request POST \
      --url "http://localhost:8080/embed" \
      --header "Content-Type: application/json" \
      --data '{
-        "model": "nomic-embed-text"
+        "model": "nomic-embed-text",
         "texts": [
             "Hell World!",
             "Goodbye, World!"
@@ -111,7 +111,7 @@ curl --request POST \
      --header "Content-Type: application/json" \
      --header "Authorization: Bearer sk-proj-Agtp8k8" \
      --data '{
-        "model": "text-embedding-3-large"
+        "model": "text-embedding-3-large",
         "texts": [
             "Hell World!",
             "Goodbye, World!"
@@ -140,7 +140,7 @@ curl --request POST \
      --url "http://localhost:8080/embed" \
      --header "Content-Type: application/json" \
      --data '{
-        "model": "text-embedding-3-large"
+        "model": "text-embedding-3-large",
         "texts": [
             "Hell World!",
             "Goodbye, World!"

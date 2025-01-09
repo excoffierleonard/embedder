@@ -10,7 +10,7 @@ services:
       - ollama
     environment:
       OLLAMA_API_URL: ${OLLAMA_API_URL:-http://ollama:11434/api/embed}
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     ports:
       - "${EMBEDDER_APP_PORT:-8080}:8080"
 
