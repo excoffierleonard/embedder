@@ -3,8 +3,13 @@ name = "embedder"
 version = "0.1.0"
 edition = "2021"
 
+[workspace]
+members = ["embedder-web", "embedder-core"]
+
 [dependencies]
-embedder-core = { workspace = true }
+embedder-web = { path = "embedder-web", version = "0.1.0" }
+actix-web = { workspace = true }
 
 [workspace.dependencies]
-embedder-core = { path = "embedder-core", version = "0.1.0" }
+actix-web = "4.9.0"
+serde = { version = "1.0.217", features = ["derive"] }

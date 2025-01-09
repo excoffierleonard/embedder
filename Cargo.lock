@@ -120,7 +120,7 @@ checksum = "77c90badedccf4105eca100756a0b1289e191f6fcbdadd3cee1d2f614f97da8f"
 name = "embedder"
 version = "0.1.0"
 dependencies = [
- "embedder-core",
+ "embedder-web",
 ]
 
 [[package]]
@@ -131,6 +131,13 @@ dependencies = [
  "reqwest",
  "serde",
  "tokio",
+]
+
+[[package]]
+name = "embedder-web"
+version = "0.1.0"
+dependencies = [
+ "embedder-core",
 ]
 
 [[package]]
