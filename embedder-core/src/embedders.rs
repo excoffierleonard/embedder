@@ -1,6 +1,7 @@
 //! Different embedders
 
 use crate::errors::EmbedderError;
+use std::future::Future;
 
 mod ollama;
 mod openai;
@@ -9,7 +10,10 @@ pub use ollama::OllamaClient;
 pub use openai::OpenAIClient;
 
 pub trait EmbeddingClient {
-    async fn create_embeddings(self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, EmbedderError>;
+    fn create_embeddings(
+        self,
+        texts: Vec<String>,
+    ) -> impl Future<Output = Result<Vec<Vec<f32>>, EmbedderError>> + Send;
 }
 
 /// Input texts to be embedded
