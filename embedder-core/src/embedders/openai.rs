@@ -6,8 +6,11 @@ use serde::{Deserialize, Serialize};
 const OPENAI_API_URL: &str = "https://api.openai.com/v1/embeddings";
 const OPENAI_EMBEDDING_MODEL: &str = "text-embedding-3-large";
 
+/// OpenAI Client
 pub struct OpenAIClient {
     api_key: String,
+    model: String,
+    base_url: String,
     client: reqwest::Client,
 }
 
@@ -16,6 +19,8 @@ impl OpenAIClient {
     pub fn new(api_key: String) -> Self {
         Self {
             api_key,
+            model: OPENAI_EMBEDDING_MODEL.to_string(),
+            base_url: OPENAI_API_URL.to_string(),
             client: reqwest::Client::new(),
         }
     }
@@ -41,12 +46,12 @@ impl EmbeddingClient for OpenAIClient {
 
         let request = OpenAIRequest {
             input: texts,
-            model: OPENAI_EMBEDDING_MODEL.to_string(),
+            model: self.model,
         };
 
         let response: OpenAIResponse = self
             .client
-            .post(OPENAI_API_URL)
+            .post(&self.base_url)
             .bearer_auth(&self.api_key)
             .json(&request)
             .send()

@@ -7,7 +7,7 @@ async fn embed_ollama_success() {
     dotenv().ok();
 
     let texts = vec!["Hello, world!".to_string(), "Goodbye, world!".to_string()];
-    let client = OllamaClient::new();
+    let client = OllamaClient::default();
 
     let embeddings = InputTexts::new(texts).embed(client).await.unwrap();
 
