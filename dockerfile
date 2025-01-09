@@ -27,7 +27,8 @@ RUN touch src/main.rs && \
 # Step 2: Create final image
 FROM scratch
 
-ENV OLLAMA_BASE_URL="http://ollama:11434"
+ENV OLLAMA_API_URL="http://ollama:11434/api/embed"
+ENV OLLAMA_EMBEDDING_MODEL="nomic-embed-text"
 ENV OPENAI_API_KEY=""
 
 

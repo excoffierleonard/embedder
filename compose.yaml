@@ -9,7 +9,8 @@ services:
     depends_on:
       - ollama
     environment:
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_API_URL: ${OLLAMA_API_URL:-http://ollama:11434/api/embed}
+      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
     ports:
       - "${EMBEDDER_APP_PORT:-8080}:8080"
