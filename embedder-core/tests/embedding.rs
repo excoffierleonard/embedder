@@ -2,6 +2,7 @@ use dotenv::dotenv;
 use embedder_core::{InputTexts, OllamaClient, OpenAIClient};
 use std::env::var;
 
+// Test the Ollama embedding client flow
 #[tokio::test]
 async fn embed_ollama_success() {
     dotenv().ok();
@@ -9,12 +10,13 @@ async fn embed_ollama_success() {
     let texts = vec!["Hello, world!".to_string(), "Goodbye, world!".to_string()];
     let client = OllamaClient::default();
 
-    let embeddings = InputTexts::new(texts).embed(client).await.unwrap();
+    let embeddings = InputTexts::new(texts.clone()).embed(client).await.unwrap();
 
     // Check that the embeddings are returned
-    assert_eq!(embeddings.len(), 2);
+    assert_eq!(embeddings.len(), texts.len());
 }
 
+// Test the OpenAI embedding client flow
 #[tokio::test]
 async fn embed_openai_success() {
     dotenv().ok();
@@ -23,8 +25,8 @@ async fn embed_openai_success() {
     let texts = vec!["Hello, world!".to_string(), "Goodbye, world!".to_string()];
     let client = OpenAIClient::new(api_key, None);
 
-    let embeddings = InputTexts::new(texts).embed(client).await.unwrap();
+    let embeddings = InputTexts::new(texts.clone()).embed(client).await.unwrap();
 
     // Check that the embeddings are returned
-    assert_eq!(embeddings.len(), 2);
+    assert_eq!(embeddings.len(), texts.len());
 }

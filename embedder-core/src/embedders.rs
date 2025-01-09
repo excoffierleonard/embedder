@@ -9,6 +9,7 @@ mod openai;
 pub use ollama::OllamaClient;
 pub use openai::OpenAIClient;
 
+/// Embedding client trait
 pub trait EmbeddingClient {
     fn create_embeddings(
         self,
