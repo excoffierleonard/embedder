@@ -31,7 +31,6 @@ ENV OLLAMA_API_URL="http://ollama:11434/api/embed"
 ENV OLLAMA_EMBEDDING_MODEL="nomic-embed-text"
 ENV OPENAI_API_KEY=""
 
-
 WORKDIR /app
 
 COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/embedder .
