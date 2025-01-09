@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [workspace]
-members = ["embedder-web", "embedder-core"]
+members = ["embedder-web", "embedder-web/embedder-core"]
 
 [dependencies]
 embedder-web = { path = "embedder-web", version = "0.1.0" }
