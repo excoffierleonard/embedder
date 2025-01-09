@@ -14,6 +14,8 @@ pub struct Config {
 pub struct LocalConfig {
     /// The URL of the Ollama embedding API.
     pub ollama_api_url: String,
+    ///
+    pub fallback_openai_api_key: Option<String>,
 }
 
 impl Config {
@@ -40,6 +42,11 @@ impl LocalConfig {
             .and_then(|v| v.parse().ok())
             .unwrap_or("http://localhost:11434/api/embed".to_string());
 
-        Self { ollama_api_url }
+        let fallback_openai_api_key = var("OPENAI_API_KEY").ok();
+
+        Self {
+            ollama_api_url,
+            fallback_openai_api_key,
+        }
     }
 }
