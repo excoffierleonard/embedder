@@ -4,7 +4,7 @@ FROM rust:alpine AS builder
 ## Install dependencies
 RUN apk add --no-cache \
     musl-dev \
-    # openssl-dev \
+    openssl-dev \
     openssl-libs-static
 
 ## Create a new empty project
