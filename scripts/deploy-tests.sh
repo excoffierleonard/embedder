@@ -5,7 +5,7 @@ set -e
 
 # Test curl
 curl --request POST \
-     --url "http://localhost:8080/embed" \
+     --url "http://embedder.excoffierleonard.com/embed" \
      --header "Content-Type: application/json" \
      --data '{
         "model": "nomic-embed-text",
