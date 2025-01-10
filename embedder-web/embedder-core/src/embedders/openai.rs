@@ -5,7 +5,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
 const OPENAI_API_URL: &str = "https://api.openai.com/v1/embeddings";
-const OPENAI_EMBEDDING_MODEL: &str = "text-embedding-3-large";
+const DEFAULT_OPENAI_EMBEDDING_MODEL: &str = "text-embedding-3-large";
 
 /// OpenAI Client
 pub struct OpenAIClient {
@@ -20,7 +20,7 @@ impl OpenAIClient {
     pub fn new(api_key: String, model: Option<String>) -> Self {
         Self {
             api_key,
-            model: model.unwrap_or_else(|| OPENAI_EMBEDDING_MODEL.to_string()),
+            model: model.unwrap_or_else(|| DEFAULT_OPENAI_EMBEDDING_MODEL.to_string()),
             base_url: OPENAI_API_URL.to_string(),
             client: Client::new(),
         }
