@@ -8,7 +8,6 @@ sudo apt update
 sudo apt install -y \
     libssl-dev
 
-
 # Clean and check
 cargo update
 cargo clean
