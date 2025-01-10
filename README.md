@@ -1,6 +1,6 @@
 # [Embedder](https://embedder.excoffierleonard.com)
 
-REST API service that takes in texts and returns their embeddings.
+REST API service that takes in texts and returns their vector embeddings.
 
 The goal of this project is to provide a central hub for embedding services.
 
