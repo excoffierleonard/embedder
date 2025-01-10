@@ -86,7 +86,6 @@ async fn request_parse_openai_custom_success() {
 
 #[actix_web::test]
 async fn request_parse_openai_fallback_success() {
-    dotenv().ok();
     // Setup
     let app = test::init_service(App::new().service(embed_texts)).await;
 

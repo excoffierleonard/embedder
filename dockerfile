@@ -33,7 +33,7 @@ RUN touch src/main.rs embedder-web/embedder-core/src/lib.rs embedder-web/src/lib
     cargo build --target x86_64-unknown-linux-musl --release
 
 # Step 2: Create final image
-FROM scratch
+FROM alpine
 
 ENV OLLAMA_API_URL="http://ollama:11434/api/embed"
 ENV OPENAI_API_KEY=""
@@ -41,5 +41,7 @@ ENV OPENAI_API_KEY=""
 WORKDIR /app
 
 COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/embedder .
+
+EXPOSE 8080
 
 CMD ["./embedder"]

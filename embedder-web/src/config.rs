@@ -42,7 +42,7 @@ impl LocalConfig {
             .and_then(|v| v.parse().ok())
             .unwrap_or("http://localhost:11434/api/embed".to_string());
 
-        let fallback_openai_api_key = var("OPENAI_API_KEY").ok();
+        let fallback_openai_api_key = var("OPENAI_API_KEY").ok().filter(|key| !key.is_empty());
 
         Self {
             ollama_api_url,
