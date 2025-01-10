@@ -14,7 +14,7 @@ pub struct Config {
 pub struct LocalConfig {
     /// The URL of the Ollama embedding API.
     pub ollama_api_url: String,
-    ///
+    /// Fallback OpenAI API key.
     pub fallback_openai_api_key: Option<String>,
 }
 
