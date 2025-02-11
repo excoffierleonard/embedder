@@ -1,19 +1,15 @@
-//! Routes for embedding texts.
-
 use crate::{config::LocalConfig, errors::ApiError, responses::EmbedResponse};
 use actix_web::{http::header, post, web::Json};
-use embedder_core::{InputTexts, OllamaClient, OpenAIClient};
+use embedder_core::{InputTexts, OllamaClient, OpenAIClient, DEFAULT_OLLAMA_EMBEDDING_MODEL};
 use serde::Deserialize;
 
-const OPENAI_EMBEDDING_MODELS: [&str; 3] = [
-    "text-embedding-ada-002",
-    "text-embedding-3-small",
-    "text-embedding-3-large",
-];
+const OPENAI_EMBEDDING_MODELS: [&str; 2] = ["text-embedding-3-small", "text-embedding-3-large"];
 
 #[derive(Deserialize)]
 struct EmbedRequestBody {
-    model: String,
+    /// Make the model optional. If not provided, we default to Ollama.
+    #[serde(default)]
+    model: Option<String>,
     texts: Vec<String>,
 }
 
@@ -24,7 +20,7 @@ async fn embed_texts(
 ) -> Result<EmbedResponse, ApiError> {
     let config = LocalConfig::build();
 
-    // If header parsing return none then fallback to the fallback
+    // Try to extract the OpenAI API key from the Authorization header, falling back if needed.
     let openai_api_key = req
         .headers()
         .get(header::AUTHORIZATION)
@@ -32,34 +28,42 @@ async fn embed_texts(
         .map(|auth| auth.trim_start_matches("Bearer ").to_string())
         .or(config.fallback_openai_api_key);
 
-    // If the model is an openai model then use the openai api key and client, if none, then fallback to the ollama client
+    let embeddings = match (model, openai_api_key) {
+        // 1. No model provided: default to Ollama.
+        (None, _) => embed_with_ollama(config.ollama_api_url, None, texts).await?,
 
-    // TODO: Consider not using clone here but dont fall into liftime hell
-    let embeddings = match (
-        OPENAI_EMBEDDING_MODELS.contains(&model.as_str()),
-        openai_api_key,
-    ) {
-        (true, Some(api_key)) => embed_with_openai(api_key, model.clone(), texts).await?,
-        (true, None) => {
+        // 2. An OpenAI model is specified and an API key is provided: use OpenAI.
+        (Some(ref m), Some(ref api_key)) if OPENAI_EMBEDDING_MODELS.contains(&m.as_str()) => {
+            // Clone m and api_key as needed.
+            embed_with_openai(api_key.clone(), m.clone(), texts).await?
+        }
+
+        // 3. An OpenAI model is specified but no API key is provided: error.
+        (Some(m), None) if OPENAI_EMBEDDING_MODELS.contains(&m.as_str()) => {
             return Err(ApiError::BadRequest(
                 "OpenAI API key is required".to_string(),
             ))
         }
-        (false, _) => embed_with_ollama(config.ollama_api_url, model.clone(), texts).await?,
+
+        // 4. A model is specified but it is not an OpenAI model: use Ollama.
+        (Some(m), _) => embed_with_ollama(config.ollama_api_url, Some(m), texts).await?,
     };
 
-    Ok(EmbedResponse { model, embeddings })
+    // If no model was provided, you may choose to set a default model name in the response.
+    let response_model = model.unwrap_or_else(|| DEFAULT_OLLAMA_EMBEDDING_MODEL.to_string());
+    Ok(EmbedResponse {
+        model: response_model,
+        embeddings,
+    })
 }
 
 async fn embed_with_ollama(
     url: String,
-    model: String,
+    model: Option<String>,
     texts: Vec<String>,
 ) -> Result<Vec<Vec<f32>>, ApiError> {
-    let client = OllamaClient::new(Some(model), Some(url));
-
+    let client = OllamaClient::new(model, Some(url));
     let embeddings = InputTexts::new(texts).embed(client).await?;
-
     Ok(embeddings)
 }
 
@@ -69,8 +73,6 @@ async fn embed_with_openai(
     texts: Vec<String>,
 ) -> Result<Vec<Vec<f32>>, ApiError> {
     let client = OpenAIClient::new(api_key, Some(model));
-
     let embeddings = InputTexts::new(texts).embed(client).await?;
-
     Ok(embeddings)
 }
