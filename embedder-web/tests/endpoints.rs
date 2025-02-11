@@ -4,6 +4,8 @@ use embedder_web::routes::embed_texts;
 use serde::{Deserialize, Serialize};
 use std::env::var;
 
+const DEFAULT_OLLAMA_EMBEDDING_MODEL: &str = "nomic-embed-text";
+
 #[derive(Serialize)]
 struct EmbedRequestBody {
     model: Option<String>,
@@ -49,14 +51,17 @@ async fn request_embed_ollama_custom_success() {
 
 #[actix_web::test]
 async fn request_embed_ollama_fallback_success() {
+    #[derive(Serialize)]
+    struct EmbedRequestBodyNoModel {
+        texts: Vec<String>,
+    }
+
     // Setup
     let app = test::init_service(App::new().service(embed_texts)).await;
 
     // Create body
     let texts = vec!["Hello, world!".to_string(), "Goodbye, world!".to_string()];
-    let body = EmbedRequestBody {
-        // No model provided
-        model: None,
+    let body = EmbedRequestBodyNoModel {
         texts: texts.clone(),
     };
 
@@ -74,7 +79,7 @@ async fn request_embed_ollama_fallback_success() {
     assert!(status.is_success());
 
     let body: EmbedResponseBody = test::read_body_json(resp).await;
-    assert_eq!(body.model, model);
+    assert_eq!(body.model, DEFAULT_OLLAMA_EMBEDDING_MODEL);
     assert_eq!(body.embeddings.len(), texts.len());
 }
 

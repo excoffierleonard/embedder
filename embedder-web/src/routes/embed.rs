@@ -28,6 +28,7 @@ async fn embed_texts(
         .map(|auth| auth.trim_start_matches("Bearer ").to_string())
         .or(config.fallback_openai_api_key);
 
+    let model_for_response = model.clone();
     let embeddings = match (model, openai_api_key) {
         // 1. No model provided: default to Ollama.
         (None, _) => embed_with_ollama(config.ollama_api_url, None, texts).await?,
@@ -48,9 +49,9 @@ async fn embed_texts(
         // 4. A model is specified but it is not an OpenAI model: use Ollama.
         (Some(m), _) => embed_with_ollama(config.ollama_api_url, Some(m), texts).await?,
     };
-
-    // If no model was provided, you may choose to set a default model name in the response.
-    let response_model = model.unwrap_or_else(|| DEFAULT_OLLAMA_EMBEDDING_MODEL.to_string());
+    // If no model was provided, use the default Ollama model.
+    let response_model =
+        model_for_response.unwrap_or_else(|| DEFAULT_OLLAMA_EMBEDDING_MODEL.to_string());
     Ok(EmbedResponse {
         model: response_model,
         embeddings,
