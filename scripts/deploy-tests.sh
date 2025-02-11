@@ -31,17 +31,17 @@ print_result() {
     fi
 }
 
-# Function to test API endpoint
+# Function to test API endpoint with a provided model
 test_embed_endpoint() {
     local test_name=$1
     local model=$2
     local headers=$3
 
     echo -e "\nTesting embedding with $test_name..."
-    
+
     local response
     local http_code
-    
+
     # Use eval to properly handle the headers string
     response=$(eval "curl -s -w '%{http_code}' $headers \
         --url '$BASE_URL/embed' \
@@ -71,9 +71,43 @@ test_embed_endpoint() {
     fi
 }
 
+# Function to test API endpoint without providing a model
+test_embed_endpoint_no_model() {
+    local test_name="No model provided (default to Ollama)"
+    echo -e "\nTesting embedding with $test_name..."
+
+    local response
+    local http_code
+
+    response=$(curl -s -w '%{http_code}' \
+        --url "$BASE_URL/embed" \
+        --header "Content-Type: application/json" \
+        --data '{
+            "texts": [
+                "Hello World!",
+                "Goodbye, World!"
+            ]
+        }'
+    )
+
+    # Extract HTTP code (last 3 characters)
+    http_code="${response: -3}"
+    # Extract response body (everything except last 3 characters)
+    response_body="${response:0:${#response}-3}"
+
+    if [ "$http_code" == "200" ] && echo "$response_body" | grep -q "embeddings"; then
+        print_result "$test_name" 0
+    else
+        echo -e "${RED}Expected successful response with embeddings${NC}"
+        echo -e "${RED}Got HTTP code: $http_code${NC}"
+        echo -e "${RED}Response body: $response_body${NC}"
+        print_result "$test_name" 1
+    fi
+}
+
 echo "Starting deployment tests..."
 
-# Test 1: Ollama request
+# Test 1: Ollama request (model provided, non-OpenAI)
 test_embed_endpoint "Ollama embedding" "nomic-embed-text" ""
 
 # Test 2: OpenAI request with custom auth
@@ -101,7 +135,6 @@ response=$(curl -s -w '%{http_code}' \
 http_code="${response: -3}"
 response_body="${response:0:${#response}-3}"
 
-# Check if response indicates expected failure
 if [ "$http_code" == "500" ] || [ "$http_code" == "400" ]; then
     print_result "OpenAI fallback test (expected failure)" 0
 else
@@ -110,5 +143,8 @@ else
     echo -e "${RED}Response body: $response_body${NC}"
     print_result "OpenAI fallback test (expected failure)" 1
 fi
+
+# Test 4: No model provided - should default to Ollama embedding
+test_embed_endpoint_no_model
 
 echo -e "\nAll tests completed!"
