@@ -4,7 +4,7 @@ use crate::{embedders::EmbeddingClient, errors::EmbedderError};
 use serde::{Deserialize, Serialize};
 
 const DEFAULT_OLLAMA_API_URL: &str = "http://localhost:11434/api/embed";
-const DEFAULT_OLLAMA_EMBEDDING_MODEL: &str = "nomic-embed-text";
+pub const DEFAULT_OLLAMA_EMBEDDING_MODEL: &str = "nomic-embed-text";
 
 /// Ollama Client
 pub struct OllamaClient {

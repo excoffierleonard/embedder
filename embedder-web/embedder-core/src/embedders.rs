@@ -6,7 +6,7 @@ use std::future::Future;
 mod ollama;
 mod openai;
 
-pub use ollama::OllamaClient;
+pub use ollama::{OllamaClient, DEFAULT_OLLAMA_EMBEDDING_MODEL};
 pub use openai::OpenAIClient;
 
 /// Embedding client trait
