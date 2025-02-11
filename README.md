@@ -4,9 +4,15 @@ REST API service that takes in texts and returns their vector embeddings.
 
 The goal of this project is to provide a central hub for embedding services.
 
-Supports both local and OpenAI embedding models.
+Supports both local and OpenAI embedding models, batch processing, and fallbacks.
 
 Demonstration Endpoint: [https://embedder.excoffierleonard.com/embed](https://embedder.excoffierleonard.com/embed)
+
+```bash
+curl https://embedder.excoffierleonard.com/embed \
+     -H "Content-Type: application/json" \
+     -d '{"texts": ["Hello, World!"]}'
+```
 
 ## 📚 Table of Contents
 
@@ -41,7 +47,7 @@ For deployment:
 The service can be configured using the following environment variables.
 
 - `EMBEDDER_APP_PORT`: _INT_, The port on which the program listens on. (default: 8080)
-- `OLLAMA_API_URL`: _STRING_, The Embedding Endpoint URL of the ollama instance. (default: http://ollama:11434/api/embed (the docker container address))
+- `OLLAMA_API_URL`: _STRING_, The Embedding Endpoint URL of the ollama instance. (default: `http://localhost:11434/api/embed` or `http://ollama:11434/api/embed` if using docker compose)
 - `OPENAI_API_KEY`: _STRING_, The OpenAI API Key used as a fallback if none is provided in the request header.
 
 > **⚠️ Warning:** Do not set a fallback OpenAI API key if you plan on exposing the service publicly.
