@@ -26,7 +26,7 @@ Authorization: Bearer *OPENAI_API_KEY*
 
 ```json
 {
-    "model": "*Name of the embedding model*",
+    "model": "*Optional Name of the embedding model*",
     "texts": [
         "*First Text.*",
         "*Seconf Text.*"
@@ -71,6 +71,34 @@ Authorization: Bearer *OPENAI_API_KEY*
 > **Note:** The embedding vectors were truncated due to being too long.
 
 > **Note:** The api key was truncated due to being too long.
+
+#### No model defined (Fallback to default Ollama model)
+
+##### Request
+
+```bash
+curl --request POST \
+     --url "http://localhost:8080/embed" \
+     --header "Content-Type: application/json" \
+     --data '{
+        "texts": [
+            "Hell World!",
+            "Goodbye, World!"
+        ]
+     }'
+```
+
+##### Response
+
+```json
+{
+    "model": "nomic-embed-text",
+    "embeddings": [
+        [0.0222439254, -0.015302311, 0.001980035],
+        [-0.015302311, 0.0233868278, 0.045129864]
+    ]
+}
+```
 
 #### Using Ollama models
 
