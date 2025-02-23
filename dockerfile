@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:experimental
-
 ##############################
 # Stage 1: Prepare the Recipe
 ##############################
