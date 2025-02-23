@@ -4,7 +4,6 @@ use actix_web::{
 };
 use embedder_web::{routes::embed_texts, Config};
 use env_logger::{init_from_env, Env};
-use num_cpus::get;
 use std::io::Result;
 
 #[actix_web::main]
@@ -20,7 +19,6 @@ async fn main() -> Result<()> {
             .service(embed_texts)
     })
     .bind(("0.0.0.0", config.port))?
-    .workers(get())
     .run()
     .await
 }
