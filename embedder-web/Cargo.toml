@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-embedder-core = { path = "embedder-core", version = "0.1.0" }
+embedder-core = { path = "../embedder-core" }
 actix-web = { workspace = true }
 serde = { workspace = true }
 dotenv = "0.15.0"
