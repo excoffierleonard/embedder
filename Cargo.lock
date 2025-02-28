@@ -541,6 +541,7 @@ dependencies = [
  "actix-web",
  "dotenv",
  "embedder-core",
+ "env_logger",
  "serde",
 ]
 
