@@ -33,6 +33,6 @@ WORKDIR /app
 ENV OLLAMA_API_URL="http://ollama:11434/api/embed"
 ENV OPENAI_API_KEY=""
 # Copy the statically linked binary from the builder stage
-COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/embedder-bin .
+COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/embedder-web .
 EXPOSE 8080
-CMD ["./embedder-bin"]
+CMD ["./embedder-web"]
